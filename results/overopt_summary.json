@@ -1,0 +1,10 @@
+{
+  "peak_gold": 1.071,
+  "kl_at_peak": 2.76,
+  "beta_at_peak": 0.326,
+  "gold_overoptimized": 0.776,
+  "kl_max": 5.39,
+  "proxy_at_peak": 1.712,
+  "proxy_overoptimized": 2.208,
+  "overoptimization_drop": 0.295
+}

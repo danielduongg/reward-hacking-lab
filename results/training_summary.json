@@ -1,0 +1,23 @@
+{
+  "peak_gold": 1.071,
+  "peak_step": 60,
+  "final_gold": 0.76,
+  "final_kl": 5.47,
+  "overoptimization_drop": 0.311,
+  "proxy_peak": 1.692,
+  "proxy_final": 2.21,
+  "validation_pg_vs_closedform": {
+    "proxy": [
+      1.786,
+      1.786
+    ],
+    "gold": [
+      1.066,
+      1.066
+    ],
+    "kl": [
+      2.995,
+      2.995
+    ]
+  }
+}

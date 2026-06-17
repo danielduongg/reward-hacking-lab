@@ -1,0 +1,14 @@
+{
+  "peak_gold_vs_preference_data": {
+    "400": 0.514,
+    "800": 0.756,
+    "1600": 1.069,
+    "3200": 1.41,
+    "6400": 1.727
+  },
+  "peak_gold_by_defense": {
+    "Single RM": 1.051,
+    "Ensemble mean": 1.742,
+    "Pessimistic ensemble (mean - 1.5 std)": 1.8
+  }
+}
