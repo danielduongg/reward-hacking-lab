@@ -1,0 +1,3 @@
+# Core (required for the offline, reproducible demo)
+numpy>=1.24
+matplotlib>=3.7
