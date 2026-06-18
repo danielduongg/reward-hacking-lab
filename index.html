@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reward Hacking — live overoptimization explorer</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0e1420;--line:#1f2a3c;--ink:#e8eef9;
+    --mut:#8aa0bf;--proxy:#5b8cff;--gold:#27d08a;--danger:#ff5d6c;--violet:#b07bff;--warn:#ffb454;}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 75% -10%,#211a3f 0%,var(--bg) 55%);
+    color:var(--ink);font:16px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:38px 20px 80px}
+  .eyebrow{letter-spacing:.16em;text-transform:uppercase;font-size:12px;color:var(--violet);font-weight:700}
+  h1{font-size:30px;margin:.25em 0 .15em;line-height:1.15}
+  .sub{color:var(--mut);max-width:66ch}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:16px;padding:20px 22px;margin-top:22px;box-shadow:0 20px 50px -30px #000}
+  .chartwrap{position:relative;width:100%}
+  svg{width:100%;height:auto;display:block}
+  .ctrls{display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap}
+  input[type=range]{flex:1;min-width:220px;accent-color:var(--violet);height:6px}
+  button{background:#1a2336;color:var(--ink);border:1px solid var(--line);border-radius:9px;
+    padding:9px 14px;font-weight:600;cursor:pointer;font-size:14px}
+  button:hover{border-color:var(--violet)}
+  .readout{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
+  .stat{background:#0a0f1a;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .stat .k{font-size:12px;color:var(--mut);letter-spacing:.03em}
+  .stat .v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:3px}
+  .verdict{margin-top:16px;padding:13px 16px;border-radius:12px;font-size:15px;font-weight:600;border:1px solid}
+  .v-ok{background:#0f2a20;color:#bff3df;border-color:#1c4636}
+  .v-peak{background:#1a1606;color:#ffe7b8;border-color:#4a3a16}
+  .v-bad{background:#2a121a;color:#ffd7dc;border-color:#4d2030}
+  .legend{display:flex;gap:18px;font-size:13px;color:var(--mut);margin-top:4px;flex-wrap:wrap}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:middle;margin-right:6px}
+  h2{font-size:19px;margin:0 0 4px}
+  .mut{color:var(--mut);font-size:14px;margin:0 0 14px}
+  .bars{display:flex;flex-direction:column;gap:10px}
+  .bar{display:grid;grid-template-columns:230px 1fr 54px;align-items:center;gap:10px;font-size:14px}
+  .bar .track{height:20px;background:#0a0f1a;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .bar .fillb{height:100%;border-radius:5px 0 0 5px}
+  .note{margin-top:18px;border-left:3px solid var(--warn);background:#1a160c;padding:12px 15px;border-radius:0 10px 10px 0;color:#ecd9b0;font-size:14.5px}
+  .foot{margin-top:26px;color:var(--mut);font-size:13px;text-align:center}
+  a{color:var(--violet);text-decoration:none}a:hover{text-decoration:underline}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">reward-hacking-lab · live demo</div>
+  <h1>Watch a policy hack its reward model</h1>
+  <p class="sub">As you crank up optimization pressure (KL distance from the base policy), the <b style="color:var(--proxy)">proxy reward</b> the model is trained on keeps climbing — but the <b style="color:var(--gold)">true reward</b> peaks and then collapses. That gap is reward overoptimization, a.k.a. Goodhart's law. <b>Drag the slider.</b></p>
+
+  <div class="card">
+    <div class="legend">
+      <span><span class="dot" style="background:var(--proxy)"></span>proxy reward (what the RM scores)</span>
+      <span><span class="dot" style="background:var(--gold)"></span>true / gold reward (what we actually want)</span>
+    </div>
+    <div class="chartwrap"><svg id="chart" viewBox="0 0 880 380" role="img" aria-label="overoptimization curve"></svg></div>
+    <div class="ctrls">
+      <span style="font-size:13px;color:var(--mut)">optimization&nbsp;pressure</span>
+      <input id="sl" type="range" min="0" max="1000" value="560">
+      <button id="play">▶ Auto-sweep</button>
+    </div>
+    <div class="readout">
+      <div class="stat"><div class="k">KL from base policy</div><div class="v" id="r-kl">—</div></div>
+      <div class="stat"><div class="k">Proxy reward</div><div class="v" id="r-proxy" style="color:var(--proxy)">—</div></div>
+      <div class="stat"><div class="k">True reward</div><div class="v" id="r-gold" style="color:var(--gold)">—</div></div>
+    </div>
+    <div class="verdict" id="verdict">—</div>
+  </div>
+
+  <div class="card">
+    <h2>What stops the collapse?</h2>
+    <p class="mut">Same setup, different reward model. A pessimistic <i>ensemble</i> of reward models is far harder to hack — it pushes the achievable peak true-reward much higher before overoptimization sets in.</p>
+    <div class="bars" id="mitbars"></div>
+  </div>
+
+  <div class="note" id="note"></div>
+
+  <div class="foot">
+    1-D synthetic RM reproducing the Gao&nbsp;et&nbsp;al. (2022) overoptimization scaling law · policy validated against a closed-form KL-regularized optimum ·
+    <a href="https://github.com/danielduongg/reward-hacking-lab" target="_blank">source &amp; full report →</a>
+  </div>
+</div>
+<script>
+// [kl, proxy, gold]
+const D = [
+ [0.0209,-0.2997,0.1486],[0.0318,-0.2511,0.1834],[0.0482,-0.1915,0.2257],[0.0730,-0.1186,0.2770],
+ [0.1103,-0.0296,0.3387],[0.1661,0.0783,0.4121],[0.2490,0.2084,0.4981],[0.3711,0.3635,0.5964],
+ [0.5485,0.5464,0.7048],[0.8019,0.7583,0.8175],[1.1529,0.9963,0.9238],[1.6118,1.2490,1.0090],
+ [2.1632,1.4954,1.0592],[2.7586,1.7116,1.0706],[3.3322,1.8807,1.0513],[3.8339,2.0008,1.0140],
+ [4.2428,2.0803,0.9701],[4.5615,2.1305,0.9264],[4.8053,2.1616,0.8866],[4.9905,2.1808,0.8531],
+ [5.1319,2.1927,0.8262],[5.2420,2.2002,0.8050],[5.3268,2.2048,0.7888],[5.3911,2.2077,0.7761]];
+const KLMIN=D[0][0], KLMAX=D[D.length-1][0];
+let peakI=0; D.forEach((d,i)=>{if(d[2]>D[peakI][2])peakI=i;});
+const KLPEAK=D[peakI][0], GPEAK=D[peakI][2], G0=D[0][2];
+
+// chart geometry
+const W=880,H=380,P={l:54,r:18,t:18,b:42};
+const xs=kl=>P.l+(kl-0)/(5.45-0)*(W-P.l-P.r);
+const YMIN=-0.45,YMAX=2.35;
+const ys=v=>H-P.b-(v-YMIN)/(YMAX-YMIN)*(H-P.t-P.b);
+function poly(idx){return D.map(d=>xs(d[0]).toFixed(1)+','+ys(d[idx]).toFixed(1)).join(' ');}
+
+// interpolate at fractional kl position t in [0,1] across kl range
+function lerpAt(kl){
+  for(let i=0;i<D.length-1;i++){
+    if(kl<=D[i+1][0]){const a=D[i],b=D[i+1];const f=(kl-a[0])/(b[0]-a[0]||1);
+      return [a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f];}
+  }
+  return [D[D.length-1][1],D[D.length-1][2]];
+}
+const slToKl=v=>KLMIN+(v/1000)*(KLMAX-KLMIN);
+
+function drawStatic(){
+  const g=[];
+  // grid + y labels
+  for(let v=0;v<=2;v+=0.5){const y=ys(v);
+    g.push(`<line x1="${P.l}" y1="${y}" x2="${W-P.r}" y2="${y}" stroke="#172033"/>`);
+    g.push(`<text x="${P.l-8}" y="${y+4}" fill="#5f7396" font-size="11" text-anchor="end" style="fill:#5f7396">${v.toFixed(1)}</text>`);}
+  // overopt shaded region (kl > peak)
+  g.push(`<rect x="${xs(KLPEAK)}" y="${P.t}" width="${W-P.r-xs(KLPEAK)}" height="${H-P.t-P.b}" fill="rgba(255,93,108,0.06)"/>`);
+  g.push(`<text x="${(xs(KLPEAK)+W-P.r)/2}" y="${P.t+16}" fill="#ff8a96" font-size="11" text-anchor="middle" style="fill:#ff8a96;letter-spacing:.08em">OVER-OPTIMIZED</text>`);
+  // peak gold marker
+  g.push(`<line x1="${xs(KLPEAK)}" y1="${P.t}" x2="${xs(KLPEAK)}" y2="${H-P.b}" stroke="#27d08a" stroke-dasharray="4 4" stroke-opacity=".5"/>`);
+  g.push(`<text x="${xs(KLPEAK)+6}" y="${ys(GPEAK)-8}" fill="#27d08a" font-size="11" style="fill:#27d08a">true-reward peak</text>`);
+  // axis labels
+  g.push(`<text x="${(W)/2}" y="${H-8}" fill="#8aa0bf" font-size="12" text-anchor="middle" style="fill:#8aa0bf">KL divergence from base policy  →  more optimization</text>`);
+  // curves
+  g.push(`<polyline points="${poly(1)}" fill="none" stroke="#5b8cff" stroke-width="2.5"/>`);
+  g.push(`<polyline points="${poly(2)}" fill="none" stroke="#27d08a" stroke-width="2.5"/>`);
+  return g.join('');
+}
+
+const chart=document.getElementById('chart');
+const STATIC=drawStatic();
+function render(kl){
+  const [pr,gd]=lerpAt(kl);
+  const dyn=[];
+  dyn.push(`<line x1="${xs(kl)}" y1="${P.t}" x2="${xs(kl)}" y2="${H-P.b}" stroke="#b07bff" stroke-width="1.5"/>`);
+  dyn.push(`<circle cx="${xs(kl)}" cy="${ys(pr)}" r="6" fill="#5b8cff" stroke="#0b0f17" stroke-width="2"/>`);
+  dyn.push(`<circle cx="${xs(kl)}" cy="${ys(gd)}" r="6" fill="#27d08a" stroke="#0b0f17" stroke-width="2"/>`);
+  chart.innerHTML=STATIC+dyn.join('');
+  document.getElementById('r-kl').textContent=kl.toFixed(2);
+  document.getElementById('r-proxy').textContent=pr.toFixed(2);
+  document.getElementById('r-gold').textContent=gd.toFixed(2);
+  const vEl=document.getElementById('verdict');
+  const capt=((gd-G0)/(GPEAK-G0))*100;
+  if(kl < KLPEAK-0.25){
+    vEl.className='verdict v-ok';
+    vEl.innerHTML=`✓ <b>Aligned regime.</b> More optimization is still improving true reward — you've captured ${capt.toFixed(0)}% of the attainable gain. Proxy and gold rise together.`;
+  } else if(kl <= KLPEAK+0.35){
+    vEl.className='verdict v-peak';
+    vEl.innerHTML=`◆ <b>The sweet spot.</b> True reward is at its peak (KL ≈ ${KLPEAK.toFixed(2)}). One step further and the reward model starts lying to you.`;
+  } else {
+    const givenBack=((GPEAK-gd)/(GPEAK-G0))*100;
+    vEl.className='verdict v-bad';
+    vEl.innerHTML=`⚠ <b>Reward hacking.</b> The proxy reward is still climbing (now ${pr.toFixed(2)}), but you've handed back <b>${givenBack.toFixed(0)}%</b> of your true-reward gains. The policy is exploiting the reward model, not getting better.`;
+  }
+}
+
+const sl=document.getElementById('sl');
+sl.addEventListener('input',()=>render(slToKl(+sl.value)));
+render(slToKl(+sl.value));
+
+// auto-sweep
+let timer=null;
+document.getElementById('play').addEventListener('click',e=>{
+  if(timer){clearInterval(timer);timer=null;e.target.textContent='▶ Auto-sweep';return;}
+  e.target.textContent='⏸ Pause'; let v=0; sl.value=0;
+  timer=setInterval(()=>{v+=12; if(v>1000){v=1000;clearInterval(timer);timer=null;e.target.textContent='▶ Auto-sweep';}
+    sl.value=v; render(slToKl(v));},45);
+});
+
+// mitigations bars
+const MIT=[["Single reward model",1.051,"#5b8cff"],["Ensemble (mean)",1.742,"#b07bff"],["Pessimistic ensemble",1.800,"#27d08a"]];
+const maxM=2.0;
+document.getElementById('mitbars').innerHTML=MIT.map(([n,v,c])=>
+ `<div class="bar"><div style="color:var(--mut)">${n}</div>
+   <div class="track"><div class="fillb" style="width:${(v/maxM*100).toFixed(1)}%;background:${c}"></div></div>
+   <div style="font-variant-numeric:tabular-nums;font-weight:700">${v.toFixed(2)}</div></div>`).join('');
+
+document.getElementById('note').innerHTML=
+ `<b>Why this matters.</b> The reward model is a stand-in for human judgment. Optimize against it hard enough and the policy finds inputs the model over-scores but humans don't — it games the proxy. This is the core failure mode behind RLHF reward hacking, shown here in a tractable 1-D model whose policy matches the closed-form KL-regularized optimum.`;
+</script>
+</body></html>
