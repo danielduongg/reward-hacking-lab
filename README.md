@@ -1,5 +1,7 @@
 # Reward-Hacking Lab
 
+[![CI](https://github.com/danielduongg/reward-hacking-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/danielduongg/reward-hacking-lab/actions)
+
 **Optimize a learned reward too hard and the true objective collapses. This repo reproduces RLHF reward-model overoptimization end-to-end — and shows how to mitigate it.**
 
 A small, fully reproducible RLHF-style testbed for the reinforcement-learning side of AI
